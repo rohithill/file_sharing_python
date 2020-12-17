@@ -1,17 +1,19 @@
 from flask import Flask, request, jsonify
 import os
 import requests
+import shelve
 
-PEER_LIST = "peer_list.txt"
-DOWNLOAD_FOLDER = "downloads"
+DATABASE = os.path.abspath("fileshare23.db")
+DEFAULT_DOWNLOAD_FOLDER = os.path.abspath("downloads")
 
-if not os.path.exists(PEER_LIST):
-    with open(PEER_LIST, "w"):
-        pass
+with shelve.open(DATABASE) as db:
+    if "download_folder" not in db.keys():
+        db["download_folder"] = DEFAULT_DOWNLOAD_FOLDER
 
-if not os.path.exists(DOWNLOAD_FOLDER):
-    os.mkdir(DOWNLOAD_FOLDER)
+    DOWNLOAD_FOLDER = db["download_folder"]
 
+    if not os.path.exists(DOWNLOAD_FOLDER):
+        os.mkdir(DOWNLOAD_FOLDER)
 
 app = Flask(__name__)
 
@@ -46,31 +48,51 @@ def send_to_remote():
 
 # peer CRUD
 
-@app.route("/peer", methods=["GET"])
+
+@app.route("/peers", methods=["GET"])
 def read_peer():
     response = []
-    with open(PEER_LIST, "r") as f:
-        for line in f:
-            response += [line.split()]
+    with shelve.open(DATABASE) as db:
+        response = db.get("peers")
     print(response)
     return jsonify(response)
 
 
-@app.route("/peer", methods=["POST"])
+@app.route("/peers", methods=["POST"])
 def create_peer():
     # accept peer name, ip address and port
     data = request.get_json()
-    peer_name, ip_address, port = data["peer_name"], data["peer_ip"], data["peer_port"]
-    string_to_write = f"{peer_name} {ip_address} {port}\n"
+    peer_name, peer_ip, peer_port = (
+        data["peer_name"],
+        data["peer_ip"],
+        data["peer_port"],
+    )
 
-    with open(PEER_LIST, "r") as f:
-        if string_to_write in f.readlines():
+    with shelve.open(DATABASE) as db:
+        peer = (peer_ip, peer_port, peer_name)
+        peers = db.get("peers") or []
+        if peer in peers:
             return "Peer already exists", 400
+        peers.append(peer)
+        db["peers"] = peers
+        print(db["peers"])
 
-    with open(PEER_LIST, "a") as f:
-        f.write(string_to_write)
+        return "Peer added succesfully", 200
 
-    return "Peer added succesfully", 200
+
+@app.route("/config/download_folder", methods=["GET", "PUT"])
+def download_folder():
+    if request.method == "GET":
+        with shelve.open(DATABASE) as db:
+            return db["download_folder"], 200
+    elif request.method == "PUT":
+        new_path = request.data
+        new_path = os.path.abspath(new_path)
+        if not os.path.exists(new_path):
+            return "Path doesn't exist", 406
+        with shelve.open(DATABASE) as db:
+            db["download_folder"] = new_path
+            return "Success", 200
 
 
 if __name__ == "__main__":
