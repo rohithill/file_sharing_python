@@ -2,6 +2,8 @@
 
 Project is in building state. It's incomplete.
 
+Python >= 3.7 is required.
+
 ### How to Develop
 
 1. Clone the repo
