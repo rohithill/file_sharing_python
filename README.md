@@ -11,5 +11,7 @@ Python >= 3.7 is required.
 3. Activate the virtual environment
 4. Install dependencies by using `python -m pip install -r requirements.txt`
 
+### How to Run
+First start the backend and then start the frontend.
 - Run the Backend (core) using `python core.py`
 - Run the Frontend (ui) using `python ui.py`
