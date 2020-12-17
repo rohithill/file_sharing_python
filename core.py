@@ -3,7 +3,7 @@ import os
 import requests
 import shelve
 
-DATABASE = os.path.abspath("fileshare23.db")
+DATABASE = os.path.abspath("fileshare.db")
 DEFAULT_DOWNLOAD_FOLDER = os.path.abspath("downloads")
 
 with shelve.open(DATABASE) as db:
@@ -17,19 +17,44 @@ with shelve.open(DATABASE) as db:
 
 app = Flask(__name__)
 
+@app.route('/is_up')
+def is_up():
+    return 'UP',200
 
 @app.route("/upload", methods=["POST"])
 def receive_file():
     # Receive file from remote peer
+    # print(request.files)
+    # print(request.data)
     data = request.files["files"]
     filename = data.filename
-    with open(os.path.join(DOWNLOAD_FOLDER, filename), "wb") as f:
-        f.write(data.read())
+    print(data,filename)
+    with shelve.open(DATABASE) as db:
+        file_path = os.path.join(db['download_folder'], filename)
+        num = 0
+        os.path.basename(file_path)
+        while os.path.exists(file_path):
+            num += 1
+            fn, ext = filename.split('.',maxsplit=1)
+            new_name = fn + f'({num})' + f'.{ext}'
+            file_path = os.path.join(db['download_folder'], new_name)
+
+        with open(file_path, "wb") as f:
+            f.write(data.read())
     return "File upload success", 200
 
 
 @app.route("/send_to_remote", methods=["POST"])
 def send_to_remote():
+    '''
+    Accepts JSON
+    {
+        "filepath" : "<filepath>",
+        "remote_ip": "<ip>",
+        "remote_port": <port>
+    }
+    '''
+    # Blocking api, start in thread when making request to this
     data = request.get_json()
     file_path = data["filepath"]
     remote_ip = data["remote_ip"]
@@ -38,44 +63,55 @@ def send_to_remote():
     upload_url = f"http://{remote_ip}:{remote_port}/upload"
     file_name = os.path.basename(file_path)
 
+    print(file_path,file_name,upload_url)
+    if not os.path.exists(file_path):
+        return "File doesn't exist", 400
     with open(file_path, "rb") as f:
-        r = requests.post(upload_url, files={"files": (file_name, f.read())})
-    if r.status_code == 200:
-        return "Request received successfully", 200
-    else:
-        return "Some Error occurred on remote side", 502
-
+        # files = {'files': f}
+        # resp = requests.post(upload_url,files=files)
+        try:
+            r = requests.post(upload_url, files={"files": (file_name, f)})
+        except requests.exceptions.ConnectionError:
+            return 'Failed to connect to remote peer', 400
+        else:
+            if r.status_code == 200:
+                return "Request received successfully", 200
+            else:
+                return "Some Error occurred on remote side", 502
 
 # peer CRUD
 
 
 @app.route("/peers", methods=["GET"])
 def read_peer():
-    response = []
     with shelve.open(DATABASE) as db:
         response = db.get("peers")
-    print(response)
     return jsonify(response)
 
 
 @app.route("/peers", methods=["POST"])
 def create_peer():
-    # accept peer name, ip address and port
+    '''
+    Accepts JSON
+    {
+        "peer_name": "<peer name>",
+        "peer_ip": "<ip>",
+        "peer_port": <port>
+    }
+    '''
     data = request.get_json()
-    peer_name, peer_ip, peer_port = (
-        data["peer_name"],
+    peer = (
         data["peer_ip"],
         data["peer_port"],
+        data["peer_name"],
     )
 
     with shelve.open(DATABASE) as db:
-        peer = (peer_ip, peer_port, peer_name)
         peers = db.get("peers") or []
         if peer in peers:
             return "Peer already exists", 400
         peers.append(peer)
         db["peers"] = peers
-        print(db["peers"])
 
         return "Peer added succesfully", 200
 
@@ -96,4 +132,7 @@ def download_folder():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    DEBUG = False
+    HOST = '127.0.0.1' # use 0.0.0.0 to allow external connections
+    PORT = 5000
+    app.run(debug=DEBUG,port=PORT)
