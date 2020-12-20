@@ -1,14 +1,10 @@
 import socket
 import tkinter as tk
 from tkinter import ttk
-import os
 from tkinter import filedialog
+from pathlib import Path
 
 import server_actions as server
-
-
-def set_download_folder():
-    pass
 
 
 def add_peers_tab(parent):
@@ -78,21 +74,48 @@ def add_transfers_tab(parent):
     transfers_tab = ttk.Frame(parent)
     parent.add(transfers_tab, text="Transfers")
 
-    transfers_list_frame = ttk.Frame(transfers_tab)
-    transfers_list_frame.pack()
-    tlist = server.get_transfers_list()
-    for i in tlist:
-        remote_ip, filename, status = i
-        tk.Label(
-            master=transfers_list_frame, text=f"{remote_ip} {filename} {status}"
-        ).pack()
+    def get_and_update_ui():
+        nonlocal transfers_list_frame
+        tlist = server.get_transfers_list()
+        transfers_list_frame.destroy()
+        transfers_list_frame = ttk.Frame(transfers_list_frame_sentinel)
+        transfers_list_frame.pack(fill="x")
+        for i in tlist[2:]:
+
+            remote_ip, filename, status = i
+            entry_frame = ttk.Frame(transfers_list_frame)
+            entry_frame.pack(fill="x")
+            lbl = tk.Label(
+                master=entry_frame, anchor="w", font="TkFixedFont", text=f"{status:8}"
+            )
+            lbl.pack(side=tk.LEFT, anchor="w")
+            lbl = tk.Label(
+                master=entry_frame,
+                anchor="w",
+                font="TkFixedFont",
+                text=f"{remote_ip:15}",
+            )
+            lbl.pack(side=tk.LEFT, anchor="w")
+            lbl = tk.Label(
+                master=entry_frame, anchor="w", font="TkFixedFont", text=f"{filename}"
+            )
+            lbl.pack(fill="x")
+
+    tk.Button(transfers_tab, text="Refresh Status", command=get_and_update_ui).pack(
+        anchor="e"
+    )
+
+    transfers_list_frame_sentinel = ttk.Frame(transfers_tab)
+    transfers_list_frame_sentinel.pack(fill="x")
+
+    transfers_list_frame = ttk.Frame(transfers_list_frame_sentinel)
+    transfers_list_frame.pack(fill="x")
 
 
 def add_settings_tab(parent):
     settings_tab = ttk.Frame(parent)
     parent.add(settings_tab, text="Settings")
     download_folder = tk.StringVar()
-    download_folder.set(os.getcwd())
 
     download_folder_frame = tk.Frame(settings_tab)
     download_folder_frame.pack(fill="x")
@@ -101,13 +124,27 @@ def add_settings_tab(parent):
     ).pack(side=tk.LEFT, padx=20, pady=10)
 
     def set_download_folder():
+
+        path = Path(download_folder.get()).parent
+
+        # print(new_svar)
         tempdir = filedialog.askdirectory(
-            initialdir=download_folder, title="Please select a directory"
+            initialdir=path, title="Please select a directory"
         )
+        if not tempdir:
+            return
+        print("tempdir", tempdir)
         download_folder.set(tempdir)
         server.set_download_folder(tempdir)
-        assert tempdir == server.get_download_folder()
-        print("Download folder updated to ", tempdir)
+        sf = server.get_download_folder()
+        get_and_set_download_folder()
+        print("Download folder updated to ", sf)
+
+    def get_and_set_download_folder():
+        folder = server.get_download_folder()
+        download_folder.set(folder)
+
+    get_and_set_download_folder()
 
     tk.Button(
         master=download_folder_frame,
@@ -117,8 +154,24 @@ def add_settings_tab(parent):
 
 
 def add_about_tab(parent):
+    credits = (
+        "This File Sharing App is created by Komal Negi, Piyush Dangayach "
+        "and Rohit Hill as the Major Project during B.Tech. from NIT Hamirpur."
+        "\n\nThis App can be used to transfer files on a local network."
+        "\nBuilt using Python3.7, Flask, and Tkinter."
+        "\n\nProject source is available at: https://github.com/rohithill/file_sharing_python"
+    )
+
     about_tab = ttk.Frame(parent)
     parent.add(about_tab, text="About")
+
+    outer_frame = ttk.Frame(about_tab)
+    outer_frame.pack(fill="both", expand=True)
+
+    txt = tk.Text(outer_frame,wrap='word')
+    txt.insert(tk.INSERT, credits)
+    txt.configure(state="disabled")
+    txt.pack(fill="both", expand=True)
 
 
 def add_tabs(parent):
@@ -132,13 +185,16 @@ def add_tabs(parent):
 
 
 def main():
+    import time
+
+    et = time.perf_counter()
     root = tk.Tk()
     root.title("File Sharing App")
     root.geometry("600x400")
     root.minsize(width=600, height=400)
 
     add_tabs(root)
-
+    print(time.perf_counter() - et)
     root.mainloop()
 
 

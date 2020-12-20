@@ -15,6 +15,7 @@ with shelve.open(DATABASE) as db:
     if not os.path.exists(DOWNLOAD_FOLDER):
         os.mkdir(DOWNLOAD_FOLDER)
 
+# maintain a list of file transferred in current session
 transfers_file_list = []
 
 app = Flask(__name__)
@@ -33,12 +34,11 @@ def receive_file():
     # print(request.data)
     data = request.files["files"]
     filename = data.filename
-    print(data, filename)
     with shelve.open(DATABASE) as db:
+        print(data, filename,type(filename),type(db["download_folder"]))
         file_path = os.path.join(db["download_folder"], filename)
         new_name = filename
         num = 0
-        os.path.basename(file_path)
         while os.path.exists(file_path):
             num += 1
             fn, ext = filename.split(".", maxsplit=1)
@@ -136,7 +136,8 @@ def download_folder():
         with shelve.open(DATABASE) as db:
             return db["download_folder"], 200
     elif request.method == "PUT":
-        new_path = request.data
+        new_path = request.get_data().decode(encoding='utf8')
+        print(type(new_path))
         new_path = os.path.abspath(new_path)
         if not os.path.exists(new_path):
             return "Path doesn't exist", 406

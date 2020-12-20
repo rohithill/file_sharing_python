@@ -6,11 +6,15 @@ SERVER_URL = f"http://{SERVER_IP}:{SERVER_PORT}"
 
 
 def set_download_folder(folder_path):
-    pass
+    URL = f"{SERVER_URL}/config/download_folder"
+    resp = requests.put(URL,data=folder_path)
 
 
 def get_download_folder():
-    pass
+    URL = f"{SERVER_URL}/config/download_folder"
+    resp = requests.get(URL)
+    print(resp.text)
+    return resp.text
 
 
 def add_new_peer(name, ip, port):
